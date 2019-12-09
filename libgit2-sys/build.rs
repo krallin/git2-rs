@@ -10,6 +10,18 @@ fn main() {
     let link_http_parser = env::var("CARGO_FEATURE_LINK_HTTP_PARSER").is_ok();
     let link_pcre = env::var("CARGO_FEATURE_LINK_PCRE").is_ok();
 
+    // You can use the delegate_linking feature to tell this build script to not emit any linker
+    // arguments for libraries you opt to link in (i.e. pcre and / or http_parser). This might be
+    // useful if you're not using Cargo to link your binaries (in particular, if you're using
+    // Buck).
+    let delegate_linking = env::var("CARGO_FEATURE_DELEGATE_LINKING").is_ok();
+
+    let emit_link = |lib: &str| {
+        if !delegate_linking {
+            println!("cargo:rustc-link-lib={}", lib);
+        }
+    };
+
     if env::var("LIBGIT2_SYS_USE_PKG_CONFIG").is_ok() {
         let mut cfg = pkg_config::Config::new();
         if let Ok(lib) = cfg.atleast_version("0.28.0").probe("libgit2") {
@@ -52,7 +64,7 @@ fn main() {
     add_c_files(&mut cfg, "libgit2/src/streams");
 
     if link_http_parser {
-        println!("cargo:rustc-link-lib=http_parser");
+        emit_link("http_parser");
     } else {
         cfg.include("libgit2/deps/http-parser")
             .file("libgit2/deps/http-parser/http_parser.c");
@@ -60,7 +72,7 @@ fn main() {
 
     if link_pcre {
         cfg.define("GIT_REGEX_PCRE", "1");
-        println!("cargo:rustc-link-lib=pcre");
+        emit_link("pcre");
     } else {
         // Use the included PCRE regex backend.
         //
@@ -178,17 +190,17 @@ fn main() {
     println!("cargo:root={}", dst.display());
 
     if target.contains("windows") {
-        println!("cargo:rustc-link-lib=winhttp");
-        println!("cargo:rustc-link-lib=rpcrt4");
-        println!("cargo:rustc-link-lib=ole32");
-        println!("cargo:rustc-link-lib=crypt32");
+        emit_link("winhttp");
+        emit_link("rpcrt4");
+        emit_link("ole32");
+        emit_link("crypt32");
         return;
     }
 
     if target.contains("apple") {
-        println!("cargo:rustc-link-lib=iconv");
-        println!("cargo:rustc-link-lib=framework=Security");
-        println!("cargo:rustc-link-lib=framework=CoreFoundation");
+        emit_link("iconv");
+        emit_link("framework=Security");
+        emit_link("framework=CoreFoundation");
     }
 }
 
